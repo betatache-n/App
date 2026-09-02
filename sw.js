@@ -1,7 +1,9 @@
 // Service worker : mise en cache pour un fonctionnement hors-ligne.
-// Stratégie simple : cache-first, avec repli réseau (et mise à jour du
-// cache en tâche de fond) si une ressource n'y est pas encore.
-const CACHE_VERSION = "v1";
+// Stratégie : réseau d'abord (pour toujours servir la dernière version
+// déployée quand on est en ligne), avec repli sur le cache uniquement
+// si le réseau échoue (hors-ligne). Le cache est aussi tenu à jour en
+// tâche de fond à chaque requête réussie.
+const CACHE_VERSION = "v2";
 const CACHE_NAME = "barometre-interieur-" + CACHE_VERSION;
 
 const PRECACHE_URLS = [
@@ -37,23 +39,20 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
 
   event.respondWith(
-    caches.match(req).then((cached) => {
-      if (cached) return cached;
-
-      return fetch(req)
-        .then((res) => {
-          if (res && res.ok && res.type === "basic") {
-            const copy = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
-          }
-          return res;
-        })
-        .catch(() => {
-          if (req.mode === "navigate") {
-            return caches.match("./barometre-interieur-partage.html");
-          }
-          return undefined;
-        });
-    })
+    fetch(req)
+      .then((res) => {
+        if (res && res.ok && res.type === "basic") {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+        }
+        return res;
+      })
+      .catch(() => caches.match(req).then((cached) => {
+        if (cached) return cached;
+        if (req.mode === "navigate") {
+          return caches.match("./barometre-interieur-partage.html");
+        }
+        return undefined;
+      }))
   );
 });
