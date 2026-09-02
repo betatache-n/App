@@ -132,7 +132,7 @@
 
   .ribbon-inner{
     max-width:960px; margin:0 auto;
-    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;
     padding:8px 14px;
   }
   .ribbon-bottom .ribbon-inner{ align-items:flex-start; }
@@ -453,13 +453,29 @@
   .theme-toggle:hover{ background:var(--surface-2); }
 
   @media (max-width:520px){
-    .ribbon-inner{ padding:7px 10px; gap:7px; }
+    body{ font-size:14px; }
+    .ribbon-inner{ padding:6px 8px; gap:6px; }
     .datetime{ min-width:auto; }
-    .voyant-btn{ max-width:130px; }
+    .datetime .time{ font-size:14px; }
+    .voyant-btn{ max-width:130px; padding:5px 10px 5px 7px; font-size:12px; }
     .voyant-btn-need{ max-width:70vw; }
+    .pill-toggle{ padding:5px 9px; font-size:12px; gap:5px; }
+    .gauge-btn{ padding:4px 8px 4px 5px; gap:6px; }
+    .battery{ width:24px; height:12px; }
+    .gauge-label{ font-size:11px; }
     .gauge-caption{ display:none; }
-    .timer-chip .k{ font-size:9px; }
-    body{ font-size:15px; }
+    .note-link{ font-size:9.5px; max-width:110px; }
+    .timer-chip{ padding:4px 8px; }
+    .timer-chip .k{ font-size:8.5px; }
+    .timer-chip .v{ font-size:12px; }
+    .cluster{ gap:6px; }
+    .cluster-grow{ gap:6px; }
+    .tabbar-inner{ gap:2px; }
+    .tab-btn{ padding:9px 10px; font-size:12.5px; }
+    main{ padding-top:38px; }
+    .wrap{ padding-top:14px; padding-bottom:28px; }
+    .card{ padding:12px 14px; }
+    .theme-toggle{ width:34px; height:34px; font-size:13px; }
   }
 
   /* Thème "carré" — filet de sécurité : aucun bord arrondi nulle part,
@@ -582,8 +598,8 @@
     </div>
     <div class="updated-note-row" id="updated-note-row">
       <span class="updated-note" id="updated-note">—</span>
-      <button type="button" class="data-btn" id="btn-export" title="Télécharger toutes les données de l'app dans un fichier JSON">⭳ Exporter</button>
-      <button type="button" class="data-btn" id="btn-import" title="Charger un fichier JSON exporté depuis cette app (remplace les données actuelles)">⭱ Importer</button>
+      <button type="button" class="data-btn" id="btn-export" title="Télécharger toutes les données de l'app dans un fichier JSON">↓ Exporter</button>
+      <button type="button" class="data-btn" id="btn-import" title="Charger un fichier JSON exporté depuis cette app (remplace les données actuelles)">↑ Importer</button>
       <input type="file" id="input-import" accept="application/json,.json" hidden>
     </div>
   </footer>
