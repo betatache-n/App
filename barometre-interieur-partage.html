@@ -114,7 +114,7 @@
     position:fixed; top:0; left:0; right:0; z-index:60;
     background:var(--sw-attention); color:#241C0C;
     text-align:center; font-size:13px; font-weight:700;
-    padding:6px 12px;
+    padding:calc(6px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 6px calc(12px + env(safe-area-inset-left));
   }
   body.is-readonly .readonly-banner{ display:block; }
   body.is-readonly #app{ padding-top:calc(var(--ribbon-top-h,64px) + 28px); }
@@ -125,9 +125,10 @@
     position:fixed; left:0; right:0; z-index:50;
     background:var(--surface); border:1px solid var(--border);
     box-shadow:var(--shadow);
+    padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-right);
   }
-  .ribbon-top{ top:0; border-top:none; border-left:none; border-right:none; }
-  .ribbon-bottom{ bottom:0; border-bottom:none; border-left:none; border-right:none; }
+  .ribbon-top{ top:0; border-top:none; border-left:none; border-right:none; padding-top:env(safe-area-inset-top); }
+  .ribbon-bottom{ bottom:0; border-bottom:none; border-left:none; border-right:none; padding-bottom:env(safe-area-inset-bottom); }
 
   .ribbon-inner{
     max-width:960px; margin:0 auto;
@@ -224,15 +225,14 @@
     padding:4px 14px 8px; flex-wrap:wrap;
   }
   .updated-note{ font-size:11px; color:var(--text-muted); text-align:center; }
-  .cloud-save-btn{
+  .data-btn{
     display:inline-flex; align-items:center; gap:6px;
     border:1px solid var(--border); background:var(--surface-2); color:var(--text-muted);
     border-radius:999px; padding:5px 11px; font-size:11.5px; font-weight:700; cursor:pointer;
     white-space:nowrap;
   }
-  .cloud-save-btn:hover{ background:var(--surface-3); }
-  .cloud-save-btn[data-dirty="true"]{ background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
-  .cloud-save-btn:disabled{ opacity:.6; cursor:default; }
+  .data-btn:hover{ background:var(--surface-3); }
+  .data-btn:disabled{ opacity:.6; cursor:default; }
 
   /* ---------- Popovers ---------- */
   .popover-layer{ position:fixed; inset:0; z-index:70; display:none; }
@@ -282,7 +282,7 @@
   body.is-readonly .tabbar{ top:calc(var(--ribbon-top-h,64px) + 28px); }
   .tabbar-inner{
     max-width:960px; margin:0 auto; display:flex; gap:4px; overflow-x:auto;
-    padding:0 10px;
+    padding:0 calc(10px + env(safe-area-inset-right)) 0 calc(10px + env(safe-area-inset-left));
   }
   .tab-btn{
     background:none; border:none; padding:12px 14px; font-size:14px; font-weight:700;
@@ -294,7 +294,10 @@
   .tab-warning-icon{ margin-left:5px; }
 
   main{ padding-top:44px; }
-  .wrap{ max-width:960px; margin:0 auto; padding:20px 16px 40px; }
+  .wrap{
+    max-width:960px; margin:0 auto;
+    padding:20px calc(16px + env(safe-area-inset-right)) 40px calc(16px + env(safe-area-inset-left));
+  }
   .panel{ display:none; }
   .panel.active{ display:block; }
 
@@ -441,7 +444,8 @@
   .modal-layer .popover{ position:relative; top:auto; left:auto; }
 
   .theme-toggle{
-    position:fixed; z-index:55; right:12px; bottom:calc(var(--ribbon-bot-h,68px) + 10px);
+    position:fixed; z-index:55;
+    right:calc(12px + env(safe-area-inset-right)); bottom:calc(var(--ribbon-bot-h,68px) + 10px);
     width:38px; height:38px; border-radius:50%; border:1px solid var(--border);
     background:var(--surface); color:var(--text); cursor:pointer; font-size:15px;
     box-shadow:var(--shadow);
@@ -578,7 +582,9 @@
     </div>
     <div class="updated-note-row" id="updated-note-row">
       <span class="updated-note" id="updated-note">—</span>
-      <button type="button" class="cloud-save-btn" id="btn-cloud-save" title="Tout est déjà enregistré en local sur cet appareil — ce bouton envoie la version actuelle dans le cloud pour la partager.">☁ Sauvegarder dans le cloud</button>
+      <button type="button" class="data-btn" id="btn-export" title="Télécharger toutes les données de l'app dans un fichier JSON">⭳ Exporter</button>
+      <button type="button" class="data-btn" id="btn-import" title="Charger un fichier JSON exporté depuis cette app (remplace les données actuelles)">⭱ Importer</button>
+      <input type="file" id="input-import" accept="application/json,.json" hidden>
     </div>
   </footer>
 
@@ -1077,27 +1083,16 @@
   }
 
   /* ---------------- persistance (localStorage) ----------------
-     - "personal" (shared=false) : brouillon privé de cet appareil/compte,
-       écrit en temps réel à chaque modification. N'affecte jamais les
-       autres personnes qui ouvrent cet outil.
-     - "shared" (shared=true) : la version "cloud", visible par tout le
-       monde qui a accès à cet outil (ex. le·la partenaire). Elle n'est
-       mise à jour qu'à la demande, via le bouton "Sauvegarder dans le
-       cloud".
-     Les deux utilisent pour l'instant localStorage (donc, en réalité,
-     limité à cet appareil/navigateur) mais restent séparées sous deux
-     clés distinctes, pour pouvoir être branchées plus tard sur un vrai
-     stockage partagé sans changer le reste du code. */
-  var STORAGE_KEY = "state";
-  var STORAGE_PREFIX = "barometre_interieur_";
+     Brouillon privé de cet appareil/navigateur, écrit en temps réel à
+     chaque modification. Pour faire circuler des données entre plusieurs
+     appareils (ex. ordinateur ↔ téléphone), pas de cloud : on exporte un
+     fichier JSON depuis l'un et on l'importe dans l'autre (boutons
+     "Exporter" / "Importer"). */
+  var STORAGE_KEY = "barometre_interieur_personal_state";
 
-  function storageKeyFor(shared){
-    return STORAGE_PREFIX + (shared ? "shared_" : "personal_") + STORAGE_KEY;
-  }
-
-  function hasWindowStorage(){
+  function hasLocalStorage(){
     try {
-      var testKey = STORAGE_PREFIX + "__test__";
+      var testKey = STORAGE_KEY + "__test__";
       window.localStorage.setItem(testKey, "1");
       window.localStorage.removeItem(testKey);
       return true;
@@ -1112,18 +1107,18 @@
     } catch (e) { return null; }
   }
 
-  async function loadStorageState(shared){
-    if (!hasWindowStorage()) return null;
+  async function loadStorageState(){
+    if (!hasLocalStorage()) return null;
     try {
-      var raw = window.localStorage.getItem(storageKeyFor(shared));
+      var raw = window.localStorage.getItem(STORAGE_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch (e) { return null; } // clé absente ou erreur -> pas de donnée
   }
 
-  async function saveStorageState(stateObj, shared){
-    if (!hasWindowStorage()) return false;
+  async function saveStorageState(stateObj){
+    if (!hasLocalStorage()) return false;
     try {
-      window.localStorage.setItem(storageKeyFor(shared), JSON.stringify(stateObj));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stateObj));
       return true;
     } catch (e) { return false; }
   }
@@ -1131,47 +1126,24 @@
   /* ---------------- state (seed synchrone, puis mise à jour async) ----------------
      On affiche tout de suite avec l'état intégré dans le document (ou un
      état par défaut) pour ne pas bloquer l'UI, puis on va chercher en
-     arrière-plan le brouillon personnel et la version cloud, et on garde
-     la plus récente des trois. */
+     arrière-plan le brouillon local et on garde le plus récent des deux. */
   var state = normalizeState(readEmbeddedState() || defaultState());
   rolloverDayIfNeeded();
 
   var isReadOnly = false;
-  var cloudSaving = false;
-  var cloudStatusMessage = null;
-  var storageReady = false;
-  var sharedTimestamp = null; // horodatage de la dernière version cloud connue
 
   function saveLocal(){
     state.lastUpdated = Date.now();
     renderUpdatedNote();
-    saveStorageState(state, false); // écriture réelle-temps, en tâche de fond
-  }
-
-  function setCloudStatusMessage(text){
-    cloudStatusMessage = text || null;
-    renderUpdatedNote();
+    saveStorageState(state); // écriture réelle-temps, en tâche de fond
   }
 
   function renderUpdatedNote(){
     var el = document.getElementById("updated-note");
     if (el){
       var when = state.lastUpdated ? relativeTime(state.lastUpdated) : "jamais";
-      var text = "Enregistré en local " + when;
-      if (cloudStatusMessage){
-        text += " · " + cloudStatusMessage;
-      } else if (!storageReady){
-        text += " · vérification du cloud…";
-      } else if (sharedTimestamp && state.lastUpdated && sharedTimestamp >= state.lastUpdated){
-        text += " · Cloud à jour (" + relativeTime(sharedTimestamp) + ")";
-      } else if (sharedTimestamp){
-        text += " · Cloud : " + relativeTime(sharedTimestamp);
-      } else {
-        text += " · Jamais envoyé au cloud";
-      }
-      el.textContent = text;
+      el.textContent = "Enregistré en local " + when;
     }
-    updateCloudButton();
   }
 
   function relativeTime(ts){
@@ -1185,58 +1157,53 @@
     return "il y a " + days + " j";
   }
 
-  function updateCloudButton(){
-    var btn = document.getElementById("btn-cloud-save");
-    if (!btn) return;
-    var dirty = !!(state.lastUpdated && (!sharedTimestamp || state.lastUpdated > sharedTimestamp));
-    btn.dataset.dirty = String(dirty && !cloudSaving);
-    btn.disabled = cloudSaving;
-    btn.textContent = cloudSaving ? "☁ Envoi en cours…" : (dirty ? "☁ Sauvegarder dans le cloud" : "☁ Cloud à jour");
+  /* -- export : télécharge un fichier JSON avec toutes les données -- */
+  function exportState(){
+    var blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var stamp = new Date().toISOString().slice(0, 10);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "barometre-interieur_" + stamp + ".json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
-  /* -- sauvegarde cloud, uniquement à la demande (bouton) -- */
-  async function forceCloudSave(){
-    if (cloudSaving) return;
-    if (!hasWindowStorage()){
-      setCloudStatusMessage("stockage indisponible dans cet aperçu");
-      return;
-    }
-    cloudSaving = true;
-    setCloudStatusMessage("envoi en cours…");
-    updateCloudButton();
-    var ok = await saveStorageState(state, true);
-    cloudSaving = false;
-    if (ok){
-      sharedTimestamp = state.lastUpdated;
-      setCloudStatusMessage(null);
-    } else {
-      setCloudStatusMessage("échec de l'enregistrement cloud");
-    }
+  /* -- import : charge un fichier JSON exporté depuis cette app et
+     remplace les données actuelles (après confirmation) -- */
+  function importStateFromFile(file){
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      var parsed;
+      try { parsed = JSON.parse(reader.result); }
+      catch (e) { alert("Fichier invalide : ce n'est pas un JSON lisible."); return; }
+      if (!parsed || typeof parsed !== "object" || !parsed.diagnoses){
+        alert("Fichier invalide : ce n'est pas un export du Baromètre Intérieur.");
+        return;
+      }
+      if (!confirm("Remplacer toutes les données actuelles par celles de ce fichier ?")) return;
+      state = normalizeState(parsed);
+      rolloverDayIfNeeded();
+      renderAll();
+      saveLocal();
+    };
+    reader.onerror = function(){ alert("Impossible de lire ce fichier."); };
+    reader.readAsText(file);
   }
 
-  /* -- au chargement : on va chercher le brouillon personnel et la version
-     cloud en arrière-plan, et on garde la plus récente des trois -- */
+  /* -- au chargement : on va chercher le brouillon local en arrière-plan
+     et on garde le plus récent des deux -- */
   async function hydrateFromStorage(){
-    if (!hasWindowStorage()){
-      storageReady = true;
-      renderUpdatedNote();
-      return;
-    }
-    var personal = await loadStorageState(false);
-    var shared = await loadStorageState(true);
-    sharedTimestamp = shared ? (shared.lastUpdated || null) : null;
-
-    var candidates = [state, personal, shared].filter(function(s){ return s && s.diagnoses; });
-    var newest = candidates.reduce(function(best, cur){
-      return (!best || (cur.lastUpdated || 0) > (best.lastUpdated || 0)) ? cur : best;
-    }, null);
-
-    if (newest && newest !== state){
-      state = normalizeState(newest);
+    if (!hasLocalStorage()) return;
+    var saved = await loadStorageState();
+    if (saved && saved.diagnoses && (saved.lastUpdated || 0) > (state.lastUpdated || 0)){
+      state = normalizeState(saved);
       rolloverDayIfNeeded();
       renderAll();
     }
-    storageReady = true;
     renderUpdatedNote();
   }
 
@@ -2244,8 +2211,16 @@
     try { if (next) localStorage.setItem("bi_theme", next); else localStorage.removeItem("bi_theme"); } catch(e){}
   });
 
-  /* -- bouton de sauvegarde cloud manuelle -- */
-  document.getElementById("btn-cloud-save").addEventListener("click", forceCloudSave);
+  /* -- export / import des données -- */
+  document.getElementById("btn-export").addEventListener("click", exportState);
+  document.getElementById("btn-import").addEventListener("click", function(){
+    document.getElementById("input-import").click();
+  });
+  document.getElementById("input-import").addEventListener("change", function(e){
+    var file = e.target.files && e.target.files[0];
+    importStateFromFile(file);
+    e.target.value = ""; // permet de réimporter le même fichier plus tard
+  });
 
   /* ---------------- init ---------------- */
   renderAll();
